@@ -18,6 +18,9 @@ companion-file: deploy/install-other-backends.md
 ```bash
 if [ "$(uname -s)" = "Darwin" ]; then
   brew tap dezgit2025/auto-memory && brew install auto-memory
+elif command -v conda >/dev/null 2>&1; then
+  conda create -n auto-memory python=3.11 pip -y
+  conda run -n auto-memory pip install auto-memory
 else
   uv tool install auto-memory
 fi
@@ -57,6 +60,7 @@ echo "path=${INSTALL_PATH:-none} version=${INSTALLED_VERSION:-unknown}"
 ```bash
 command -v uv   >/dev/null 2>&1 && PKG=uv   || \
 command -v pipx >/dev/null 2>&1 && PKG=pipx || \
+command -v conda >/dev/null 2>&1 && PKG=conda || \
 command -v pip3 >/dev/null 2>&1 && PKG=pip  || \
 PKG=none
 echo "pkg: $PKG  shell: $(basename "$SHELL")"
@@ -67,7 +71,7 @@ echo "pkg: $PKG  shell: $(basename "$SHELL")"
 ## Section 2 — Choose Install Path
 
 ```bash
-LATEST="0.4.0"
+LATEST="0.4.1"
 if [ -z "$INSTALL_PATH" ]; then
   STATE="not-installed"
 elif [ -z "$INSTALLED_VERSION" ]; then
@@ -107,6 +111,9 @@ Run the **first** command that succeeds. Stop after first success.
 ```bash
 if [ "$(uname -s)" = "Darwin" ]; then
   brew tap dezgit2025/auto-memory && brew install auto-memory
+elif command -v conda >/dev/null 2>&1; then
+  conda create -n auto-memory python=3.11 pip -y
+  conda run -n auto-memory pip install auto-memory
 else
   uv tool install auto-memory                 # preferred
   pipx install auto-memory                    # fallback 1
@@ -142,6 +149,8 @@ Detect method and use the **matching** upgrade command (never mix tools):
 ```bash
 if command -v brew >/dev/null 2>&1 && brew list auto-memory >/dev/null 2>&1; then
   brew upgrade auto-memory
+elif command -v conda >/dev/null 2>&1 && conda env list | grep -qE '(^|[[:space:]])auto-memory([[:space:]]|$)'; then
+  conda run -n auto-memory pip install --upgrade auto-memory
 elif uv tool list 2>/dev/null | grep -q auto-memory; then
   uv tool upgrade auto-memory
 elif pipx list 2>/dev/null | grep -q auto-memory; then
@@ -309,6 +318,7 @@ echo "$PATH" | tr ':' '\n' | grep -q '.local/bin' && echo "OK" || echo "MISSING 
 brew uninstall auto-memory      # if installed with Homebrew
 uv tool uninstall auto-memory    # if installed with uv
 pipx uninstall auto-memory       # if installed with pipx
+conda remove -n auto-memory --all -y  # if installed in Conda env
 python3 -m pip uninstall auto-memory  # if installed with pip
 ```
 

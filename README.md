@@ -61,6 +61,11 @@ brew upgrade auto-memory           # upgrade to latest
 # Alternatives (all platforms)
 uv tool install auto-memory
 pipx install auto-memory
+conda create -n auto-memory python=3.11 pip -y && conda activate auto-memory && pip install auto-memory
+
+# From this repo (isolated Conda env)
+conda env create -f environment.yml
+conda activate auto-memory
 session-recall health          # verify it works
 ```
 
