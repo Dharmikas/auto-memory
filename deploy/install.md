@@ -16,7 +16,12 @@ companion-file: deploy/install-other-backends.md
 **Agents:** read sections 1–7 in order. Every mutating step requires user confirmation. Use a reasoning model (Sonnet 4.6, GPT-5.4) — mini models may skip confirmation gates.
 
 ```bash
-uv tool install auto-memory && session-recall schema-check && session-recall health
+if [ "$(uname -s)" = "Darwin" ]; then
+  brew tap dezgit2025/auto-memory && brew install auto-memory
+else
+  uv tool install auto-memory
+fi
+session-recall schema-check && session-recall health
 # Then append the instruction block from Section 6 to your agent instructions file
 ```
 
@@ -93,16 +98,20 @@ echo "state: $STATE"
 
 ## Section 3 — Fresh Install
 
-### 3a — From PyPI (recommended)
+### 3a — Package install (recommended)
 
-> **Agent:** ask user *"Install auto-memory from PyPI? (Y/n)"*
+> **Agent:** ask user *"Install auto-memory now? (Y/n)"*
 
 Run the **first** command that succeeds. Stop after first success.
 
 ```bash
-uv tool install auto-memory              # preferred
-pipx install auto-memory                 # fallback 1
-python3 -m pip install --user auto-memory  # fallback 2
+if [ "$(uname -s)" = "Darwin" ]; then
+  brew tap dezgit2025/auto-memory && brew install auto-memory
+else
+  uv tool install auto-memory                 # preferred
+  pipx install auto-memory                    # fallback 1
+  python3 -m pip install --user auto-memory   # fallback 2
+fi
 ```
 
 ### 3b — From source (for contributors)
@@ -131,7 +140,9 @@ If `which` returns nothing → see **Section 9**.
 Detect method and use the **matching** upgrade command (never mix tools):
 
 ```bash
-if uv tool list 2>/dev/null | grep -q auto-memory; then
+if command -v brew >/dev/null 2>&1 && brew list auto-memory >/dev/null 2>&1; then
+  brew upgrade auto-memory
+elif uv tool list 2>/dev/null | grep -q auto-memory; then
   uv tool upgrade auto-memory
 elif pipx list 2>/dev/null | grep -q auto-memory; then
   pipx upgrade auto-memory
@@ -295,6 +306,7 @@ echo "$PATH" | tr ':' '\n' | grep -q '.local/bin' && echo "OK" || echo "MISSING 
 ### Uninstall
 
 ```bash
+brew uninstall auto-memory      # if installed with Homebrew
 uv tool uninstall auto-memory    # if installed with uv
 pipx uninstall auto-memory       # if installed with pipx
 python3 -m pip uninstall auto-memory  # if installed with pip

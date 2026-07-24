@@ -176,6 +176,78 @@ def test_cli_fallback_uses_tool_path_to_infer_repository(
     assert sessions[0]["repository"] == "dezgit2025/auto-memory"
 
 
+def test_cli_fallback_reads_nested_session_state_jsonl(tmp_path: Path) -> None:
+    state_root = tmp_path / "session-state"
+    nested = state_root / "sessions" / "abcd1234-0000-0000-0000-000000000001"
+    nested.mkdir(parents=True)
+    events = nested / "events.jsonl"
+
+    payloads = [
+        {
+            "type": "session.start",
+            "data": {
+                "sessionId": "abcd1234-0000-0000-0000-000000000001",
+                "context": {"repository": "owner/repo"},
+            },
+            "timestamp": "2026-04-22T11:00:00.000Z",
+        },
+        {
+            "type": "user.message",
+            "data": {"content": "Find recent failing tests"},
+            "timestamp": "2026-04-22T11:01:00.000Z",
+        },
+    ]
+    events.write_text(
+        "\n".join(json.dumps(p) for p in payloads) + "\n", encoding="utf-8"
+    )
+
+    provider = CopilotCliProvider(
+        db_path=str(tmp_path / "missing.db"), state_root=str(state_root)
+    )
+
+    sessions = provider.list_sessions(repo="owner/repo", limit=5, days=None)
+    assert len(sessions) == 1
+    assert sessions[0]["summary"].startswith("Find recent failing tests")
+
+
+def test_cli_fallback_reads_command_history_state_json(tmp_path: Path) -> None:
+    copilot_root = tmp_path / ".copilot"
+    state_root = copilot_root / "session-state"
+    state_root.mkdir(parents=True)
+
+    command_history = copilot_root / "command-history-state.json"
+    command_history.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "role": "user",
+                        "content": "Summarize commits from yesterday",
+                        "timestamp": "2026-04-22T12:00:00.000Z",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "I found 6 commits touching auth and docs.",
+                        "timestamp": "2026-04-22T12:00:05.000Z",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    provider = CopilotCliProvider(
+        db_path=str(tmp_path / "missing.db"), state_root=str(state_root)
+    )
+
+    sessions = provider.list_sessions(repo="all", limit=10, days=None)
+    assert len(sessions) == 1
+    assert sessions[0]["summary"].startswith("Summarize commits")
+
+    results = provider.search("commits", repo="all", limit=5, days=None)
+    assert len(results) >= 1
+
+
 def test_cli_fallback_labels_non_repo_session_as_local_workspace(
     tmp_path: Path,
 ) -> None:

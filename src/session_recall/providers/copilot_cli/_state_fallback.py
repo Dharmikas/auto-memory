@@ -14,12 +14,15 @@ def state_list_sessions(
     rows = []
     for fp in state_files:
         parsed = parse_state_session(provider_id, fp)
+        if int(parsed.get("turns_count") or 0) <= 0:
+            continue
         if repo and repo != "all" and parsed.get("repository") != repo:
             continue
         if not is_within_days(parsed.get("created_at"), days):
             continue
         record = {k: v for k, v in parsed.items() if not k.startswith("_")}
         record["_trust_level"] = "trusted_first_party"
+        record["_recall_derived"] = bool(parsed.get("_recall_derived"))
         rows.append(record)
         if len(rows) >= limit:
             break
@@ -35,6 +38,8 @@ def state_search(
     out = []
     for fp in state_files:
         parsed = parse_state_session(provider_id, fp)
+        if int(parsed.get("turns_count") or 0) <= 0:
+            continue
         if repo and repo != "all" and parsed.get("repository") != repo:
             continue
         if not is_within_days(parsed.get("created_at"), days):
@@ -55,6 +60,7 @@ def state_search(
                     "excerpt": content[:250]
                     + ("..." if len(content) > 250 else ""),
                     "_trust_level": "trusted_first_party",
+                    "_recall_derived": bool(parsed.get("_recall_derived")),
                 }
             )
             if len(out) >= limit:
@@ -68,6 +74,8 @@ def state_get_session(
     sid = session_id.strip().lower()
     for fp in state_files:
         parsed = parse_state_session(provider_id, fp)
+        if int(parsed.get("turns_count") or 0) <= 0:
+            continue
         full_id = str(parsed["id_full"]).lower()
         if not (full_id == sid or full_id.startswith(sid)):
             continue

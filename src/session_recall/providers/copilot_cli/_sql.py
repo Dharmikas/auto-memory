@@ -7,6 +7,23 @@ import sqlite3
 from ..common import short_id
 
 
+_RECALL_DERIVED_SQL = """
+        EXISTS (
+                SELECT 1
+                FROM turns rt
+                WHERE rt.session_id = s.id
+                    AND (
+                        lower(coalesce(rt.user_message, '')) LIKE '%session-recall%'
+                        OR lower(coalesce(rt.assistant_response, '')) LIKE '%session-recall%'
+                        OR lower(coalesce(rt.user_message, '')) LIKE '%session recall%'
+                        OR lower(coalesce(rt.assistant_response, '')) LIKE '%session recall%'
+                        OR lower(coalesce(rt.user_message, '')) LIKE '%progressive session recall%'
+                        OR lower(coalesce(rt.assistant_response, '')) LIKE '%progressive session recall%'
+                    )
+        ) AS recall_derived
+"""
+
+
 def sql_list_sessions(
     conn: sqlite3.Connection,
     provider_id: str,
@@ -17,10 +34,11 @@ def sql_list_sessions(
     days_arg = f"-{days or 30} days"
     if repo and repo != "all":
         rows = conn.execute(
-            """
+            f"""
             SELECT s.id, s.repository, s.branch, s.summary, s.created_at, s.updated_at,
                    (SELECT COUNT(*) FROM turns t WHERE t.session_id = s.id) as turns_count,
-                   (SELECT COUNT(*) FROM session_files f WHERE f.session_id = s.id) as files_count
+                   (SELECT COUNT(*) FROM session_files f WHERE f.session_id = s.id) as files_count,
+                   {_RECALL_DERIVED_SQL}
             FROM sessions s WHERE s.repository = ? AND s.created_at >= datetime('now', ?)
             ORDER BY s.created_at DESC LIMIT ?
             """,
@@ -28,10 +46,11 @@ def sql_list_sessions(
         ).fetchall()
     else:
         rows = conn.execute(
-            """
+            f"""
             SELECT s.id, s.repository, s.branch, s.summary, s.created_at, s.updated_at,
                    (SELECT COUNT(*) FROM turns t WHERE t.session_id = s.id) as turns_count,
-                   (SELECT COUNT(*) FROM session_files f WHERE f.session_id = s.id) as files_count
+                   (SELECT COUNT(*) FROM session_files f WHERE f.session_id = s.id) as files_count,
+                   {_RECALL_DERIVED_SQL}
             FROM sessions s WHERE s.created_at >= datetime('now', ?)
             ORDER BY s.created_at DESC LIMIT ?
             """,
@@ -50,6 +69,7 @@ def sql_list_sessions(
             "turns_count": r["turns_count"],
             "files_count": r["files_count"],
             "_trust_level": "trusted_first_party",
+            "_recall_derived": bool(r["recall_derived"]),
         }
         for r in rows
     ]
@@ -142,34 +162,59 @@ def sql_search(
     limit: int,
     days: int | None,
 ) -> list[dict]:
-    date_clause = " AND s.created_at >= datetime('now', ?)" if days else ""
     date_param = (f"-{days} days",) if days else ()
     if repo and repo != "all":
-        sql = (
-            """
-            SELECT si.content, si.session_id, si.source_type,
-                   s.summary, s.created_at, s.repository
-            FROM search_index si JOIN sessions s ON s.id = si.session_id
-            WHERE search_index MATCH ? AND s.repository = ?
-            """
-            + date_clause
-            + " ORDER BY rank LIMIT ?"
-        )
-        rows = conn.execute(
-            sql, (fts_query, repo, *date_param, limit)
-        ).fetchall()
+        if days:
+            rows = conn.execute(
+                                f"""
+                SELECT si.content, si.session_id, si.source_type,
+                                             s.summary, s.created_at, s.repository,
+                                             {_RECALL_DERIVED_SQL}
+                FROM search_index si JOIN sessions s ON s.id = si.session_id
+                WHERE search_index MATCH ? AND s.repository = ?
+                  AND s.created_at >= datetime('now', ?)
+                ORDER BY rank LIMIT ?
+                """,
+                (fts_query, repo, *date_param, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""
+                SELECT si.content, si.session_id, si.source_type,
+                       s.summary, s.created_at, s.repository,
+                       {_RECALL_DERIVED_SQL}
+                FROM search_index si JOIN sessions s ON s.id = si.session_id
+                WHERE search_index MATCH ? AND s.repository = ?
+                ORDER BY rank LIMIT ?
+                """,
+                (fts_query, repo, limit),
+            ).fetchall()
     else:
-        sql = (
-            """
-            SELECT si.content, si.session_id, si.source_type,
-                   s.summary, s.created_at, s.repository
-            FROM search_index si JOIN sessions s ON s.id = si.session_id
-            WHERE search_index MATCH ?
-            """
-            + date_clause
-            + " ORDER BY rank LIMIT ?"
-        )
-        rows = conn.execute(sql, (fts_query, *date_param, limit)).fetchall()
+        if days:
+            rows = conn.execute(
+                                f"""
+                SELECT si.content, si.session_id, si.source_type,
+                                             s.summary, s.created_at, s.repository,
+                                             {_RECALL_DERIVED_SQL}
+                FROM search_index si JOIN sessions s ON s.id = si.session_id
+                WHERE search_index MATCH ?
+                  AND s.created_at >= datetime('now', ?)
+                ORDER BY rank LIMIT ?
+                """,
+                (fts_query, *date_param, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""
+                SELECT si.content, si.session_id, si.source_type,
+                       s.summary, s.created_at, s.repository,
+                       {_RECALL_DERIVED_SQL}
+                FROM search_index si JOIN sessions s ON s.id = si.session_id
+                WHERE search_index MATCH ?
+                ORDER BY rank LIMIT ?
+                """,
+                (fts_query, limit),
+            ).fetchall()
     return [
         {
             "provider": provider_id,
@@ -182,6 +227,7 @@ def sql_search(
             "excerpt": (r["content"] or "")[:250]
             + ("..." if len(r["content"] or "") > 250 else ""),
             "_trust_level": "trusted_first_party",
+            "_recall_derived": bool(r["recall_derived"]),
         }
         for r in rows
     ]

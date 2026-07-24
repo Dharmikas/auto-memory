@@ -211,3 +211,67 @@ def test_list_tops_up_from_all_scope_when_sparse_repo_results():
     assert payload["repo"] == "all"
     assert payload["scope_fallback_used"] is True
     assert payload["count"] >= 2
+
+
+def test_list_deprioritizes_recall_derived_rows():
+    """Likely recall-derived rows should rank below direct work rows."""
+
+    class _FakeProvider:
+        provider_id = "cli"
+
+        def schema_problems(self):
+            return []
+
+        def list_sessions(self, repo=None, limit=10, days=None):
+            return [
+                {
+                    "provider": "cli",
+                    "id_short": "newer001",
+                    "id_full": "newer001-0000-0000-0000-000000000000",
+                    "repository": "owner/repo",
+                    "branch": "main",
+                    "summary": "Ran session-recall search and summarized prior sessions",
+                    "date": "2026-04-22",
+                    "created_at": "2026-04-22T12:00:00Z",
+                    "turns_count": 1,
+                    "files_count": 0,
+                    "_recall_derived": True,
+                },
+                {
+                    "provider": "cli",
+                    "id_short": "older002",
+                    "id_full": "older002-0000-0000-0000-000000000000",
+                    "repository": "owner/repo",
+                    "branch": "main",
+                    "summary": "Fixed auth retry edge case",
+                    "date": "2026-04-22",
+                    "created_at": "2026-04-22T11:00:00Z",
+                    "turns_count": 2,
+                    "files_count": 1,
+                    "_recall_derived": False,
+                },
+            ][:limit]
+
+        def recent_files(self, repo=None, limit=10, days=None):
+            return []
+
+    with (
+        patch(
+            "session_recall.commands.list_sessions.get_active_providers",
+            return_value=[_FakeProvider()],
+        ),
+        patch(
+            "session_recall.commands.list_sessions.detect_repo",
+            return_value="owner/repo",
+        ),
+    ):
+        from session_recall.commands.list_sessions import run
+
+        args = SimpleNamespace(repo=None, limit=10, days=30, json=True, provider="cli")
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            code = run(args)
+
+    payload = json.loads(buf.getvalue())
+    assert code == 0
+    assert payload["sessions"][0]["summary"] == "Fixed auth retry edge case"

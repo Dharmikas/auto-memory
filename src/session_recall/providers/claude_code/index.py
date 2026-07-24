@@ -243,19 +243,27 @@ def query_search(
     if safe_q is None:
         return []
     df, repo_f = f"-{days} days", _repo_filter(repo)
-    base = ("SELECT cs.session_id, cs.user_msg, cs.summary, s.repository, s.branch,"
-            " s.last_seen, snippet(cc_search, 1, '⟦', '⟧', '…', 24) AS snippet"
-            " FROM cc_search cs JOIN cc_sessions s ON s.id=cs.session_id")
-    bm25 = "bm25(cc_search, 0.0, 5.0, 1.0, 1.0, 1.0)"
     conn = _open(path)
     try:
         if repo_f:
-            sql = (f"{base} WHERE cc_search MATCH ? AND s.repository=?"
-                   f" AND s.last_seen >= datetime('now',?) ORDER BY {bm25} LIMIT ?")
+            sql = (
+                "SELECT cs.session_id, cs.user_msg, cs.summary, s.repository, s.branch,"
+                " s.last_seen, snippet(cc_search, 1, '⟦', '⟧', '…', 24) AS snippet"
+                " FROM cc_search cs JOIN cc_sessions s ON s.id=cs.session_id"
+                " WHERE cc_search MATCH ? AND s.repository=?"
+                " AND s.last_seen >= datetime('now',?)"
+                " ORDER BY bm25(cc_search, 0.0, 5.0, 1.0, 1.0, 1.0) LIMIT ?"
+            )
             params: tuple = (safe_q, repo_f, df, limit)
         else:
-            sql = (f"{base} WHERE cc_search MATCH ?"
-                   f" AND s.last_seen >= datetime('now',?) ORDER BY {bm25} LIMIT ?")
+            sql = (
+                "SELECT cs.session_id, cs.user_msg, cs.summary, s.repository, s.branch,"
+                " s.last_seen, snippet(cc_search, 1, '⟦', '⟧', '…', 24) AS snippet"
+                " FROM cc_search cs JOIN cc_sessions s ON s.id=cs.session_id"
+                " WHERE cc_search MATCH ?"
+                " AND s.last_seen >= datetime('now',?)"
+                " ORDER BY bm25(cc_search, 0.0, 5.0, 1.0, 1.0, 1.0) LIMIT ?"
+            )
             params = (safe_q, df, limit)
         return [{**dict(r), "_trust_level": _TRUST_LEVEL}
                 for r in conn.execute(sql, params)]
@@ -284,10 +292,16 @@ def query_show(
         if not row:
             return None
         sid = row["id"]
-        turn_sql = ("SELECT * FROM cc_turns WHERE session_id=? ORDER BY turn_index"
-                    + (" LIMIT ?" if turns is not None else ""))
-        turn_params = (sid, turns) if turns is not None else (sid,)
-        turn_rows = conn.execute(turn_sql, turn_params).fetchall()
+        if turns is not None:
+            turn_rows = conn.execute(
+                "SELECT * FROM cc_turns WHERE session_id=? ORDER BY turn_index LIMIT ?",
+                (sid, turns),
+            ).fetchall()
+        else:
+            turn_rows = conn.execute(
+                "SELECT * FROM cc_turns WHERE session_id=? ORDER BY turn_index",
+                (sid,),
+            ).fetchall()
         file_rows = conn.execute(
             "SELECT file_path, tool_name FROM cc_files WHERE session_id=?", (sid,),
         ).fetchall()

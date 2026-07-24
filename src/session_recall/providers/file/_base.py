@@ -62,7 +62,9 @@ class _FileSessionProvider(StorageProvider):
         return files
 
     def _session_id(self, file_path: Path) -> str:
-        digest = hashlib.sha1(str(file_path).encode("utf-8")).hexdigest()
+        # Session IDs are deterministic identifiers, not cryptographic secrets.
+        # Use SHA-256 to avoid weak-hash primitives.
+        digest = hashlib.sha256(str(file_path).encode("utf-8")).hexdigest()
         return f"{self.provider_id}:{digest}"
 
     def _session_from_file(self, file_path: Path) -> dict:

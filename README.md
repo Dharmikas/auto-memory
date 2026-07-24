@@ -29,7 +29,7 @@
 
 | Backend | Status | How to enable |
 |---------|--------|--------------|
-| **GitHub Copilot CLI** | ✅ default | Already on — `pip install auto-memory` is all you need |
+| **GitHub Copilot CLI** | ✅ default | Already on — `brew install auto-memory` (macOS) or `uv tool install auto-memory` |
 | **Claude Code** | 🟡 opt-in | `pip install auto-memory[claude]` — [Full setup →](deploy/install-claude-code.md) |
 | **VS Code** | 🟡 opt-in | [Enable in 30 seconds →](deploy/install-other-backends.md#32--vs-code-backend) |
 | **JetBrains** | 🟡 opt-in | [Enable →](deploy/install-other-backends.md#33--jetbrains-backend) |
@@ -46,8 +46,13 @@
 ### Quickstart
 
 ```bash
-pip install auto-memory           # or: git clone + ./install.sh
-pip install --upgrade auto-memory # upgrade to latest
+brew tap dezgit2025/auto-memory   # macOS (Homebrew)
+brew install auto-memory
+brew upgrade auto-memory           # upgrade to latest
+
+# Alternatives (all platforms)
+uv tool install auto-memory
+pipx install auto-memory
 session-recall health          # verify it works
 ```
 

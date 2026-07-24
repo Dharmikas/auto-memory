@@ -28,17 +28,47 @@ class CopilotCliProvider(StorageProvider):
     def __init__(self, db_path: str, state_root: str) -> None:
         self.db_path = db_path
         self.state_root = Path(state_root)
+        self.copilot_root = self.state_root.parent
+
+    @staticmethod
+    def _is_state_candidate(file_path: Path) -> bool:
+        name = file_path.name.lower()
+        if name in {"events.jsonl", "command-history-state.json"}:
+            return True
+        if file_path.suffix.lower() not in {".json", ".jsonl"}:
+            return False
+        return any(
+            token in name
+            for token in ("session", "state", "history", "event", "chat")
+        )
 
     def _has_db(self) -> bool:
         return Path(self.db_path).exists()
 
     def _state_files(self) -> list[Path]:
-        if not self.state_root.exists():
-            return []
-        files = [
-            f for f in self.state_root.glob("*/events.jsonl")
-            if is_under_root(f, self.state_root)
-        ]
+        files: list[Path] = []
+        seen: set[Path] = set()
+
+        if self.state_root.exists():
+            for file_path in self.state_root.glob("**/*"):
+                if not file_path.is_file() or not self._is_state_candidate(file_path):
+                    continue
+                resolved = file_path.resolve()
+                if not is_under_root(resolved, self.state_root):
+                    continue
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                files.append(resolved)
+
+        # Newer Copilot builds may keep history metadata at .copilot root.
+        history_file = self.copilot_root / "command-history-state.json"
+        if history_file.exists() and history_file.is_file():
+            resolved = history_file.resolve()
+            if resolved not in seen and is_under_root(resolved, self.copilot_root):
+                seen.add(resolved)
+                files.append(resolved)
+
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return files
 

@@ -4,6 +4,7 @@ import sys
 
 from ..config import DB_PATH
 from ..providers.discovery import get_active_providers
+from ..util.recall_hygiene import recall_row_score
 from ..util.detect_repo import detect_repo
 from ..util.format_output import output
 from ._lookback import resolve_days
@@ -84,14 +85,15 @@ def run(args) -> int:
     if scope_fallback_used:
         scope = "all"
 
-    sessions = sorted(
-        sessions,
-        key=lambda s: s.get("created_at") or "",
-        reverse=True,
-    )[:limit]
+    # Preserve recency, then deprioritize likely recall-derived/paraphrased rows.
+    sessions = sorted(sessions, key=lambda s: s.get("created_at") or "", reverse=True)
+    sessions = sorted(sessions, key=recall_row_score)[:limit]
     recent_files = sorted(
         recent_files, key=lambda f: f.get("date") or "", reverse=True
     )[:10]
+
+    for row in sessions:
+        row.pop("_recall_derived", None)
 
     # Strip provider field when single-provider (reduces token overhead)
     _all_records = sessions + recent_files

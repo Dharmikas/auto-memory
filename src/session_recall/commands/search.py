@@ -5,6 +5,7 @@ import sys
 
 from ..config import DB_PATH
 from ..providers.discovery import get_active_providers
+from ..util.recall_hygiene import recall_row_score
 from ..util.detect_repo import detect_repo
 from ..util.format_output import output
 from ._lookback import resolve_days
@@ -91,7 +92,11 @@ def run(args) -> int:
             )
         scope = "all"
 
-    results = sorted(results, key=lambda r: r.get("date") or "", reverse=True)[:limit]
+    # Preserve recency, then deprioritize likely recall-derived/paraphrased rows.
+    results = sorted(results, key=lambda r: r.get("date") or "", reverse=True)
+    results = sorted(results, key=recall_row_score)[:limit]
+    for row in results:
+        row.pop("_recall_derived", None)
 
     # Strip provider field when single-provider (reduces token overhead)
     _provider_ids = {r.get("provider") for r in results if "provider" in r}

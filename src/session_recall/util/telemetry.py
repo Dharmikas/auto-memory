@@ -33,7 +33,7 @@ def record(cmd: str, duration_ms: int, busy_hits: int = 0,
         return
     try:
         path = Path(_TELEMETRY_PATH)
-        entries = json.loads(path.read_text()).get("entries", []) if path.exists() else []
+        entries = json.loads(path.read_text(encoding="utf-8")).get("entries", []) if path.exists() else []
         entry = {
             "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "cmd": cmd, "duration_ms": duration_ms, "busy_hits": busy_hits,
@@ -52,6 +52,7 @@ def record(cmd: str, duration_ms: int, busy_hits: int = 0,
         entries.append(entry)
         entries = entries[-500:]  # Ring buffer: 100 → 500
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"entries": entries}, indent=2))
-    except Exception:
-        pass  # Silent fail — telemetry must never crash the CLI
+        path.write_text(json.dumps({"entries": entries}, indent=2), encoding="utf-8")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        # Silent fail — telemetry must never crash the CLI.
+        return

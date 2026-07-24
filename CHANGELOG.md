@@ -3,6 +3,43 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-07-24
+
+### Added
+- **Homebrew install path for macOS**
+  - Added local formula at `deploy/homebrew/auto-memory.rb`
+  - Added Homebrew-first quickstart/install docs (`brew tap ... && brew install auto-memory`)
+- **Recall hygiene module** (`src/session_recall/util/recall_hygiene.py`)
+  - Heuristic scoring for likely recall-derived/paraphrased context
+  - Used for ranking mitigation without mutating Copilot storage
+- **Regression coverage for ranking and fallback parsing**
+  - Added `test_search_command.py`
+  - Added new fallback tests in `test_provider_backends.py` for nested `session-state` and `command-history-state.json`
+
+### Changed
+- **Version bump:** `__version__` updated to `0.4.1`
+- **Search/list ranking now mitigates recursive paraphrase contamination**
+  - `list` and `search` preserve recency but deprioritize likely recall-derived rows
+  - Internal `_recall_derived` signal is stripped from output payloads
+- **Copilot storage compatibility expanded**
+  - Fallback discovery now recursively scans `session-state` JSON/JSONL candidates
+  - Includes `.copilot/command-history-state.json` when `session-store.db` is absent
+  - Parser now supports non-`events.jsonl` JSON session snapshots and normalizes non-UUID/non-hex IDs to deterministic hex
+
+### Security
+- **Hash hardening:** file session IDs now use SHA-256 instead of SHA-1
+- **Retry jitter hardening:** switched to `SystemRandom` in SQLite backoff path
+- **Subprocess hardening:** git repo detection resolves absolute git binary and handles `CalledProcessError`
+- **Query safety hardening:** removed dynamic SQL assembly patterns in Copilot/Claude query paths in favor of static parameterized statements
+- **Telemetry hardening:** explicit UTF-8 read/write and narrowed handled exception types
+
+### Fixed
+- **`database not found` with newer Copilot layouts**
+  - CLI provider now works when `.copilot/session-store.db` is missing but `session-state` data exists
+  - Prevents metadata-only artifacts from being surfaced as sessions by skipping zero-turn parses
+- **Install/upgrade docs drift for macOS**
+  - `README.md` and `deploy/install.md` now document Homebrew install, upgrade, and uninstall paths
+
 ## [0.4.0] — Claude Code Support
 
 ### Added

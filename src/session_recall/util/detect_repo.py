@@ -1,7 +1,11 @@
 """Detect current repository from git remote or environment."""
 
-import subprocess
+import subprocess  # nosec B404
 import re
+import shutil
+
+
+_GIT_BIN = shutil.which("git")
 
 
 def parse_repo_url(url: str) -> str | None:
@@ -19,27 +23,35 @@ def parse_repo_url(url: str) -> str | None:
 
 def detect_repo_for_cwd(cwd: str, timeout: int = 5) -> str | None:
     """Return owner/repo for a specific working directory path."""
+    if not _GIT_BIN:
+        return None
     try:
-        url = subprocess.run(
-            ["git", "-C", cwd, "remote", "get-url", "origin"],
+        # Safe subprocess usage: constant argv list and shell=False.
+        url = subprocess.run(  # nosec B603
+            [_GIT_BIN, "-C", cwd, "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
             timeout=timeout,
+            check=True,
         ).stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
         return None
     return parse_repo_url(url)
 
 
 def detect_repo() -> str | None:
     """Return 'owner/repo' from git remote origin, or None."""
+    if not _GIT_BIN:
+        return None
     try:
-        url = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
+        # Safe subprocess usage: constant argv list and shell=False.
+        url = subprocess.run(  # nosec B603
+            [_GIT_BIN, "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
             timeout=5,
+            check=True,
         ).stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
         return None
     return parse_repo_url(url)

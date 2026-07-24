@@ -6,6 +6,7 @@ import sys
 import time
 
 RETRY_DELAYS_MS = [50, 150, 450]
+_JITTER_RNG = random.SystemRandom()
 
 
 def connect_ro(db_path: str) -> sqlite3.Connection:
@@ -15,7 +16,7 @@ def connect_ro(db_path: str) -> sqlite3.Connection:
         sys.exit(4)
     for delay in [0] + RETRY_DELAYS_MS:
         if delay:
-            time.sleep(delay * random.uniform(0.8, 1.2) / 1000)
+            time.sleep(delay * _JITTER_RNG.uniform(0.8, 1.2) / 1000)
         try:
             conn = sqlite3.connect(
                 f"file:{db_path}?mode=ro",
