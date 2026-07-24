@@ -12,6 +12,7 @@ from ._lookback import resolve_days
 
 # FTS5 special chars that cause syntax errors when unquoted
 _FTS5_SPECIAL = re.compile(r'[.\-(){}[\]^~*:"+/\\@#$%&!?<>=|]')
+_CALL_LIKE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\(\)$")
 
 
 def sanitize_fts5_query(raw: str) -> str | None:
@@ -31,6 +32,9 @@ def sanitize_fts5_query(raw: str) -> str | None:
     tokens = stripped.split()
     safe_tokens = []
     for tok in tokens:
+        if _CALL_LIKE.fullmatch(tok):
+            safe_tokens.append(f'"{tok.replace(chr(34), chr(34) * 2)}"')
+            continue
         if _FTS5_SPECIAL.search(tok):
             subtokens = [s for s in _FTS5_SPECIAL.split(tok) if s]
             if not subtokens:
