@@ -19,7 +19,15 @@
      Entry: Read deploy/install.md
 -->
 
-### 🆕 What's New in v0.4.0
+### 🆕 What's New in v0.4.1
+
+- **Homebrew install support (macOS)** — install with `brew tap dezgit2025/auto-memory && brew install auto-memory`.
+- **Copilot storage compatibility upgrade** — session recall now supports current `session-state` sources when legacy `session-store.db` is missing.
+- **Recall hygiene ranking** — `list` and `search` now deprioritize likely recall-derived paraphrase loops to reduce context contamination over time.
+
+**Zero-dependency CLI that gives AI agents fast, read-only session recall with schema checks and progressive fallback support. ~50 tokens per prompt.**
+
+
 
 **Claude Code support** — `session-recall-cc` reads Claude Code JSONL sessions and builds an FTS5 index for structured recall. `pip install auto-memory[claude]` to get started. [Full changelog →](CHANGELOG.md)
 
