@@ -67,17 +67,22 @@ class _FileSessionProvider(StorageProvider):
         digest = hashlib.sha256(str(file_path).encode("utf-8")).hexdigest()
         return f"{self.provider_id}:{digest}"
 
+    def _infer_repository(self, file_path: Path) -> str:
+        """Infer repository/workspace label for list/search/session outputs."""
+        return "unknown"
+
     def _session_from_file(self, file_path: Path) -> dict:
         sid = self._session_id(file_path)
         mtime = file_path.stat().st_mtime
         created = utc_iso_from_ts(mtime)
         turns = self._parse_turns(file_path)
         summary = _best_summary(turns, fallback=file_path.name)
+        repository = self._infer_repository(file_path)
         return {
             "provider": self._output_id,
             "id_short": short_id(sid),
             "id_full": sid,
-            "repository": "unknown",
+            "repository": repository,
             "branch": "unknown",
             "summary": wrap_untrusted(summary),
             "date": created[:10],

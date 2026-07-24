@@ -328,6 +328,79 @@ def test_vscode_provider_skips_pathological_jsonl_lines(tmp_path: Path) -> None:
     assert sessions[0]["turns_count"] == 1
 
 
+def test_vscode_provider_infers_repository_from_workspace_json(tmp_path: Path) -> None:
+    root = tmp_path / "workspaceStorage"
+    bucket = root / "bucket123"
+    chat_dir = bucket / "chatSessions"
+    chat_dir.mkdir(parents=True)
+    fp = chat_dir / "session.jsonl"
+    fp.write_text(
+        json.dumps({"kind": 1, "k": ["inputState", "inputText"], "v": "hello"}) + "\n",
+        encoding="utf-8",
+    )
+    (bucket / "workspace.json").write_text(
+        json.dumps({"folder": "file:///tmp/work/repo"}), encoding="utf-8"
+    )
+
+    provider = VSCodeProvider(root_override=str(root))
+    sessions = provider.list_sessions(repo="all", limit=5, days=None)
+
+    assert len(sessions) == 1
+    assert sessions[0]["repository"] == "/tmp/work/repo"
+
+
+def test_vscode_provider_infers_windows_file_uri_from_workspace_json(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "workspaceStorage"
+    bucket = root / "bucket789"
+    chat_dir = bucket / "chatSessions"
+    chat_dir.mkdir(parents=True)
+    fp = chat_dir / "session.jsonl"
+    fp.write_text(
+        json.dumps({"kind": 1, "k": ["inputState", "inputText"], "v": "hello"}) + "\n",
+        encoding="utf-8",
+    )
+    (bucket / "workspace.json").write_text(
+        json.dumps({"folder": "file:///C:/Users/dev/work/repo"}),
+        encoding="utf-8",
+    )
+
+    provider = VSCodeProvider(root_override=str(root))
+    sessions = provider.list_sessions(repo="all", limit=5, days=None)
+
+    assert len(sessions) == 1
+    assert sessions[0]["repository"] == "C:/Users/dev/work/repo"
+
+
+def test_vscode_provider_infers_remote_workspace_from_workspace_json(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "workspaceStorage"
+    bucket = root / "bucket456"
+    chat_dir = bucket / "chatSessions"
+    chat_dir.mkdir(parents=True)
+    fp = chat_dir / "session.jsonl"
+    fp.write_text(
+        json.dumps({"kind": 1, "k": ["inputState", "inputText"], "v": "hello"}) + "\n",
+        encoding="utf-8",
+    )
+    (bucket / "workspace.json").write_text(
+        json.dumps(
+            {
+                "folder": "vscode-remote://ssh-remote%2B198.18.140.87/home/copilot-code-reviewer"
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    provider = VSCodeProvider(root_override=str(root))
+    sessions = provider.list_sessions(repo="all", limit=5, days=None)
+
+    assert len(sessions) == 1
+    assert sessions[0]["repository"] == "ssh-remote+198.18.140.87/home/copilot-code-reviewer"
+
+
 def test_vscode_provider_includes_wsl_server_path() -> None:
     provider = VSCodeProvider()
     wsl_path = Path.home() / ".vscode-server" / "data" / "User" / "workspaceStorage"
