@@ -299,7 +299,14 @@ def test_vscode_provider_includes_results_when_repo_filter_is_set(
             "k": ["inputState", "inputText"],
             "v": "Continue API refactor plan",
         },
-        {"kind": 2, "v": [{"message": "I'll pick up where we left off."}]},
+        {
+            "kind": 2,
+            "v": [
+                {
+                    "message": "I'll pick up where we left off in src/session_recall/providers/file/_base.py and README.md."
+                }
+            ],
+        },
     ]
     fp.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
 
@@ -309,6 +316,46 @@ def test_vscode_provider_includes_results_when_repo_filter_is_set(
     assert len(sessions) == 1
     assert sessions[0]["provider"] == "vsc"
     assert "Continue API refactor" in sessions[0]["summary"]
+
+
+def test_vscode_recent_files_uses_parsed_session_summary(tmp_path: Path) -> None:
+    root = tmp_path / "workspaceStorage"
+    bucket = root / "abc"
+    chat_dir = bucket / "chatSessions"
+    chat_dir.mkdir(parents=True)
+    fp = chat_dir / "session.jsonl"
+    (bucket / "workspace.json").write_text(
+        json.dumps({"folder": "file:///tmp/work/repo"}), encoding="utf-8"
+    )
+
+    rows = [
+        {
+            "kind": 1,
+            "k": ["inputState", "inputText"],
+            "v": "Continue API refactor plan",
+        },
+        {
+            "kind": 2,
+            "v": [
+                {
+                    "message": "I'll pick up where we left off in src/session_recall/providers/file/_base.py and README.md."
+                }
+            ],
+        },
+    ]
+    fp.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+    provider = VSCodeProvider(root_override=str(root))
+    files = provider.recent_files(repo="all", limit=5, days=None)
+
+    assert len(files) == 1
+    assert files[0]["file_path"] == str(fp)
+    assert files[0]["workspace_path"] == "/tmp/work/repo"
+    assert "Continue API refactor" in files[0]["session_summary"]
+    assert "UNTRUSTED-FILE-BACKED-CONTENT" not in files[0]["session_summary"]
+    assert fp.name not in files[0]["session_summary"]
+    assert "src/session_recall/providers/file/_base.py" in files[0]["touched_files"]
+    assert "README.md" in files[0]["touched_files"]
 
 
 def test_vscode_provider_skips_pathological_jsonl_lines(tmp_path: Path) -> None:
@@ -326,6 +373,49 @@ def test_vscode_provider_skips_pathological_jsonl_lines(tmp_path: Path) -> None:
 
     assert len(sessions) == 1
     assert sessions[0]["turns_count"] == 1
+
+
+def test_vscode_recent_files_extracts_touched_from_raw_path_fields(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "workspaceStorage"
+    bucket = root / "rawpaths"
+    chat_dir = bucket / "chatSessions"
+    chat_dir.mkdir(parents=True)
+    fp = chat_dir / "session.jsonl"
+    (bucket / "workspace.json").write_text(
+        json.dumps({"folder": "file:///tmp/work/repo"}), encoding="utf-8"
+    )
+
+    rows = [
+        {
+            "kind": 1,
+            "k": ["inputState", "inputText"],
+            "v": "Investigate schema issues",
+        },
+        {
+            "kind": 9,
+            "tool": {
+                "arguments": {
+                    "path": "/tmp/work/repo/src/session_recall/providers/file/_base.py"
+                }
+            },
+        },
+        {
+            "kind": 9,
+            "tool": {
+                "arguments": {"path": "/tmp/other-project/ignore-me.py"}
+            },
+        },
+    ]
+    fp.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+    provider = VSCodeProvider(root_override=str(root))
+    files = provider.recent_files(repo="all", limit=5, days=None)
+
+    assert len(files) == 1
+    assert "src/session_recall/providers/file/_base.py" in files[0]["touched_files"]
+    assert "ignore-me.py" not in "\n".join(files[0]["touched_files"])
 
 
 def test_vscode_provider_infers_repository_from_workspace_json(tmp_path: Path) -> None:

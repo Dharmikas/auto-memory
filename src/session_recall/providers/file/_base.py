@@ -8,8 +8,13 @@ from pathlib import Path
 
 from ..base import StorageProvider
 from ..common import is_within_days, short_id, utc_iso_from_ts
-from ._parse_helpers import _best_summary, parse_turns
-from ._trust import wrap_untrusted
+from ._parse_helpers import (
+    _best_summary,
+    extract_touched_files,
+    extract_touched_files_from_jsonl,
+    parse_turns,
+)
+from ._trust import unwrap_untrusted, wrap_untrusted
 from ._path_safety import is_under_root
 
 
@@ -117,18 +122,41 @@ class _FileSessionProvider(StorageProvider):
     ) -> list[dict]:
         rows: list[dict] = []
         for fp in self._iter_files(days=days):
-            created = utc_iso_from_ts(fp.stat().st_mtime)
-            if not is_within_days(created, days):
+            sess = self._session_from_file(fp)
+            if not is_within_days(sess.get("created_at"), days):
                 continue
-            sid = self._session_id(fp)
+            repository = sess.get("repository") or "unknown"
+            workspace_path = "" if repository == "unknown" else str(repository)
+            from_text = extract_touched_files(sess.get("_turns", []), limit=10)
+            from_jsonl = extract_touched_files_from_jsonl(
+                fp,
+                workspace_path=workspace_path or None,
+                max_parse_lines=self._MAX_PARSE_LINES,
+                max_line_chars=self._MAX_LINE_CHARS,
+                limit=10,
+            )
+            touched_files: list[str] = []
+            seen: set[str] = set()
+            for group in (from_jsonl, from_text):
+                for path in group:
+                    if path in seen:
+                        continue
+                    seen.add(path)
+                    touched_files.append(path)
+                    if len(touched_files) >= 10:
+                        break
+                if len(touched_files) >= 10:
+                    break
             rows.append(
                 {
                     "provider": self._output_id,
                     "file_path": str(fp),
+                    "workspace_path": workspace_path,
                     "tool_name": "json-log",
-                    "date": created[:10],
-                    "session_id": short_id(sid),
-                    "session_summary": wrap_untrusted(fp.name),
+                    "date": sess["date"],
+                    "session_id": sess["id_short"],
+                    "session_summary": unwrap_untrusted(sess["summary"]),
+                    "touched_files": touched_files,
                     "_trust_level": "untrusted_third_party",
                 }
             )

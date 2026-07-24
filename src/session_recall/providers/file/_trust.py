@@ -11,3 +11,11 @@ def wrap_untrusted(text: str) -> str:
     # Strip any embedded fence markers an attacker could inject
     text = text.replace(_FENCE_OPEN, "").replace(_FENCE_CLOSE, "")
     return f"{_FENCE_OPEN}\n{text}\n{_FENCE_CLOSE}"
+
+
+def unwrap_untrusted(text: str) -> str:
+    """Remove sentinel fence markers for user-facing display fields."""
+    if not text:
+        return text
+    clean = text.replace(_FENCE_OPEN, "").replace(_FENCE_CLOSE, "")
+    return clean.strip()
