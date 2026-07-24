@@ -4,7 +4,7 @@ class AutoMemory < Formula
   desc "Session memory recall for AI coding agents"
   homepage "https://github.com/dezgit2025/auto-memory"
   url "https://github.com/dezgit2025/auto-memory.git",
-      tag: "v0.4.0",
+      tag: "v0.4.1",
       revision: "1be648725714e28c9ce3dbc55f8bd4bef64b4d90"
   license "MIT"
 
