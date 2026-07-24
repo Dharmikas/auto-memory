@@ -12,6 +12,7 @@ from session_recall.providers.file import (
     _extract_text,
     _is_wsl,
 )
+from session_recall.providers.file._parse_helpers import _best_summary
 
 
 def test_vscode_kind1_inputtext_extraction() -> None:
@@ -339,3 +340,11 @@ def test_is_wsl_returns_false_when_proc_version_missing(monkeypatch) -> None:
         lambda *a, **kw: (_ for _ in ()).throw(OSError("No such file")),
     )
     assert _is_wsl() is False
+
+
+def test_best_summary_skips_markdown_heading_line() -> None:
+    turns = [
+        {"user": "# Home\nFix summary extraction", "assistant": "", "idx": 0},
+        {"user": "Fix summary extraction", "assistant": "", "idx": 1},
+    ]
+    assert _best_summary(turns, fallback="fallback") == "Fix summary extraction"

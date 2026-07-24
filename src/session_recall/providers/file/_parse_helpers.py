@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+
+
+_HEXISH_RE = re.compile(r"^[0-9a-fA-F]{6,}$")
 
 
 def _extract_role(obj: object) -> str:
@@ -84,6 +88,12 @@ def _best_summary(turns: list[dict], fallback: str) -> str:
             if len(first_line) < 4:
                 continue
             if first_line in {"@", "```", "---"}:
+                continue
+            if first_line.startswith("#"):
+                continue
+            if first_line.startswith("<<") and "UNTRUSTED" in first_line:
+                continue
+            if _HEXISH_RE.match(first_line):
                 continue
             return first_line[:120]
     return fallback

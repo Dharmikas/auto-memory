@@ -11,6 +11,26 @@ _CONTROL_RE = re.compile(
     r"|[\x80-\x9f]"  # C1 controls
 )
 
+_UNTRUSTED_OPEN = "<<UNTRUSTED-FILE-BACKED-CONTENT>>"
+_UNTRUSTED_CLOSE = "<<END-UNTRUSTED-FILE-BACKED-CONTENT>>"
+
+
+def _display_summary(raw: str | None, max_len: int = 40) -> str:
+    """Human-facing summary text.
+
+    Keep trust fences in machine-readable payloads, but strip them for terminal
+    table output so users see the actual summary content.
+    """
+    text = sanitize_for_terminal(raw)
+    if not text:
+        return "(untitled)"
+    text = text.replace(_UNTRUSTED_OPEN, "").replace(_UNTRUSTED_CLOSE, "")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if lines:
+        text = lines[0]
+    text = " ".join(text.split())
+    return (text or "(untitled)")[:max_len]
+
 
 def sanitize_for_terminal(s: str | None) -> str:
     """Strip ANSI/OSC/control sequences so session content can't hijack the terminal."""
@@ -38,7 +58,7 @@ def fmt_human_sessions(sessions: list[dict]) -> str:
         date = sanitize_for_terminal(s.get("date", s.get("created_at", "?"))[:10])
         repo = sanitize_for_terminal((s.get("repository") or "unknown")[:28])
         turns = str(s.get("turns_count", s.get("turns", "?")))
-        summary = sanitize_for_terminal((s.get("summary") or "(untitled)")[:40])
+        summary = _display_summary(s.get("summary"), max_len=40)
         lines.append(f"{sid:8s}  {date:10s}  {repo:28s}  {turns:>5s}  {summary}")
     return "\n".join(lines)
 
