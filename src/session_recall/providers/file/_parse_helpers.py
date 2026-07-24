@@ -8,6 +8,23 @@ from pathlib import Path
 
 
 _HEXISH_RE = re.compile(r"^[0-9a-fA-F]{6,}$")
+_JSON_ARTIFACT_RE = re.compile(r"^[0-9a-fA-F-]{16,}\.(?:json|jsonl)$", re.IGNORECASE)
+
+
+def _is_summary_noise(line: str) -> bool:
+    if len(line) < 4:
+        return True
+    if line in {"@", "```", "---"}:
+        return True
+    if line.startswith("#"):
+        return True
+    if line.startswith("<<") and "UNTRUSTED" in line:
+        return True
+    if _HEXISH_RE.match(line):
+        return True
+    if _JSON_ARTIFACT_RE.match(line):
+        return True
+    return False
 
 
 def _extract_role(obj: object) -> str:
@@ -84,19 +101,15 @@ def _best_summary(turns: list[dict], fallback: str) -> str:
             raw = str(turn.get(key) or "").strip()
             if not raw:
                 continue
-            first_line = raw.splitlines()[0].strip()
-            if len(first_line) < 4:
-                continue
-            if first_line in {"@", "```", "---"}:
-                continue
-            if first_line.startswith("#"):
-                continue
-            if first_line.startswith("<<") and "UNTRUSTED" in first_line:
-                continue
-            if _HEXISH_RE.match(first_line):
-                continue
-            return first_line[:120]
-    return fallback
+            for line in raw.splitlines():
+                candidate = line.strip()
+                if _is_summary_noise(candidate):
+                    continue
+                return candidate[:120]
+    fallback_line = str(fallback or "").strip().splitlines()[0].strip() if fallback else ""
+    if _is_summary_noise(fallback_line):
+        return "(untitled)"
+    return fallback_line[:120] if fallback_line else "(untitled)"
 
 
 def parse_turns(
